@@ -9,9 +9,8 @@ class ThreadgramApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Threadgram',
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Colors.black,
-        primaryColor: Colors.blueAccent,
+      theme: ThemeData.light().copyWith(
+        scaffoldBackgroundColor: Colors.white,
       ),
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
@@ -19,134 +18,109 @@ class ThreadgramApp extends StatelessWidget {
   }
 }
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
-    );
-    _animationController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0F172A), Color(0xFF1E1B4B)],
-          ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: GlassCard(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.chat_bubble_outline, size: 80, color: Colors.white70),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Threadgram',
-                        style: TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.2),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            side: BorderSide(color: Colors.white.withOpacity(0.5)),
-                          ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const Spacer(flex: 3),
+            // Threadgram logo with eBay-style colors
+            const ColoredLetterLogo(),
+            const Spacer(flex: 4),
+            // Get Started button - glass morphism
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                  );
+                },
+                child: TweenAnimationBuilder(
+                  tween: Tween<double>(begin: 1.0, end: 1.0),
+                  duration: const Duration(milliseconds: 100),
+                  builder: (context, double scale, child) {
+                    return Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
                         child: const Text(
                           'Get Started',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937), // gray-900
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
-          ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
   }
 }
 
-class GlassCard extends StatelessWidget {
-  final Widget child;
-  const GlassCard({super.key, required this.child});
+class ColoredLetterLogo extends StatelessWidget {
+  const ColoredLetterLogo({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            spreadRadius: 5,
+    const letters = [
+      {'char': 'T', 'color': Color(0xFFe53238)}, // red
+      {'char': 'h', 'color': Color(0xFF0064d2)}, // blue
+      {'char': 'r', 'color': Color(0xFFf5af02)}, // yellow
+      {'char': 'e', 'color': Color(0xFF0064d2)}, // blue
+      {'char': 'a', 'color': Color(0xFF86b817)}, // green
+      {'char': 'd', 'color': Color(0xFFe53238)}, // red
+      {'char': 'g', 'color': Color(0xFF0064d2)}, // blue
+      {'char': 'r', 'color': Color(0xFFf5af02)}, // yellow
+      {'char': 'a', 'color': Color(0xFF0064d2)}, // blue
+      {'char': 'm', 'color': Color(0xFF86b817)}, // green
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: letters.map((letter) {
+        return Text(
+          letter['char'] as String,
+          style: TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.bold,
+            color: letter['color'] as Color,
+            letterSpacing: -1,
           ),
-        ],
-      ),
-      child: child,
+        );
+      }).toList(),
     );
   }
 }
 
-// Temporary placeholder – we will replace this with the real SignUp screen later
+// Temporary placeholder – will be replaced with real Supabase SignUp screen
 class SignUpScreen extends StatelessWidget {
   const SignUpScreen({super.key});
 
