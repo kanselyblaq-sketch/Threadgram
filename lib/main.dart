@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() => runApp(const ThreadgramApp());
+Future<void> main() async {
+  await dotenv.load(fileName: ".env");
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  );
+  runApp(const ThreadgramApp());
+}
 
 class ThreadgramApp extends StatelessWidget {
   const ThreadgramApp({super.key});
@@ -9,126 +18,171 @@ class ThreadgramApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Threadgram',
-      theme: ThemeData.light().copyWith(
-        scaffoldBackgroundColor: Colors.white,
-      ),
-      home: const SplashScreen(),
+      theme: ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.white),
+      home: const AuthEntryScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+// --- Layer 1: Auth Entry Screen ---
+class AuthEntryScreen extends StatefulWidget {
+  const AuthEntryScreen({super.key});
+
+  @override
+  State<AuthEntryScreen> createState() => _AuthEntryScreenState();
+}
+
+class _AuthEntryScreenState extends State<AuthEntryScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        Provider.google,
+        redirectTo: 'io.supabase.flutter://login-callback/',
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google Sign-In failed: $error')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _continueWithEmail() async {
+    if (_emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your email')));
+      return;
+    }
+    setState(() => _isLoading = true);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => AccountCompletionScreen(email: _emailController.text)),
+    );
+    setState(() => _isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(flex: 3),
-            // Threadgram logo with eBay-style colors
-            const ColoredLetterLogo(),
-            const Spacer(flex: 4),
-            // Get Started button - glass morphism
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                  );
-                },
-                child: TweenAnimationBuilder(
-                  tween: Tween<double>(begin: 1.0, end: 1.0),
-                  duration: const Duration(milliseconds: 100),
-                  builder: (context, double scale, child) {
-                    return Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 20,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: const Text(
-                          'Get Started',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1F2937), // gray-900
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('THREADGRAM', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              const Text('Log in or sign up'),
+              const SizedBox(height: 40),
+              _buildSocialButton('Continue with Apple', () => _showComingSoon()),
+              _buildSocialButton('Continue with Facebook', () => _showComingSoon()),
+              _buildSocialButton('Continue with Google', _signInWithGoogle),
+              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('OR')), Expanded(child: Divider())]),
+              const SizedBox(height: 20),
+              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email address', border: OutlineInputBorder())),
+              const SizedBox(height: 20),
+              if (_isLoading) const CircularProgressIndicator() else ElevatedButton(onPressed: _continueWithEmail, child: const Text('Continue')),
+              TextButton(onPressed: () => _showComingSoon(), child: const Text('Forgot Password?')),
+              const SizedBox(height: 20),
+              const Text('English'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSocialButton(String text, VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+        child: Text(text),
+      ),
+    );
+  }
+
+  void _showComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Coming Soon!')));
+  }
+}
+
+// --- Layer 2: Account Completion Form ---
+class AccountCompletionScreen extends StatefulWidget {
+  final String email;
+  const AccountCompletionScreen({super.key, required this.email});
+
+  @override
+  State<AccountCompletionScreen> createState() => _AccountCompletionScreenState();
+}
+
+class _AccountCompletionScreenState extends State<AccountCompletionScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _agreeToTerms = false;
+
+  Future<void> _signUp() async {
+    if (!_formKey.currentState!.validate() || !_agreeToTerms) return;
+    setState(() => _isLoading = true);
+    try {
+      final AuthResponse res = await Supabase.instance.client.auth.signUp(
+        email: widget.email,
+        password: _passwordController.text,
+        data: {'first_name': _firstNameController.text, 'last_name': _lastNameController.text},
+      );
+      if (res.user != null) {
+        // Navigate to Layer 3 (Region/Country screen)
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RegionSelectionScreen()));
+      } else {
+        throw Exception('Sign-up failed');
+      }
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-up failed: $error')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Create Account')),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(controller: _firstNameController, decoration: const InputDecoration(labelText: 'First name'), validator: (value) => value!.isEmpty ? 'Required' : null),
+              TextFormField(controller: _lastNameController, decoration: const InputDecoration(labelText: 'Last name'), validator: (value) => value!.isEmpty ? 'Required' : null),
+              TextFormField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Password'), obscureText: true, validator: (value) => value!.length < 6 ? 'Password too short' : null),
+              Row(children: [Checkbox(value: _agreeToTerms, onChanged: (val) => setState(() => _agreeToTerms = val!)), const Expanded(child: Text('I agree to the Privacy Policy, Terms of Use and Terms of Service'))]),
+              const SizedBox(height: 20),
+              if (_isLoading) const CircularProgressIndicator() else ElevatedButton(onPressed: _signUp, child: const Text('Continue')),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class ColoredLetterLogo extends StatelessWidget {
-  const ColoredLetterLogo({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    const letters = [
-      {'char': 'T', 'color': Color(0xFFe53238)}, // red
-      {'char': 'h', 'color': Color(0xFF0064d2)}, // blue
-      {'char': 'r', 'color': Color(0xFFf5af02)}, // yellow
-      {'char': 'e', 'color': Color(0xFF0064d2)}, // blue
-      {'char': 'a', 'color': Color(0xFF86b817)}, // green
-      {'char': 'd', 'color': Color(0xFFe53238)}, // red
-      {'char': 'g', 'color': Color(0xFF0064d2)}, // blue
-      {'char': 'r', 'color': Color(0xFFf5af02)}, // yellow
-      {'char': 'a', 'color': Color(0xFF0064d2)}, // blue
-      {'char': 'm', 'color': Color(0xFF86b817)}, // green
-    ];
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: letters.map((letter) {
-        return Text(
-          letter['char'] as String,
-          style: TextStyle(
-            fontSize: 48,
-            fontWeight: FontWeight.bold,
-            color: letter['color'] as Color,
-            letterSpacing: -1,
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// Temporary placeholder – will be replaced with real Supabase SignUp screen
-class SignUpScreen extends StatelessWidget {
-  const SignUpScreen({super.key});
+// Placeholder for Layer 3: Region/Country Selection
+class RegionSelectionScreen extends StatelessWidget {
+  const RegionSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign Up')),
-      body: const Center(child: Text('Sign Up screen – coming soon!')),
+      appBar: AppBar(title: const Text('Select Region')),
+      body: const Center(child: Text('Region Selection Screen - Coming Soon!')),
     );
   }
 }
