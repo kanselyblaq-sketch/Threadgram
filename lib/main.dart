@@ -3,29 +3,67 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
-  await dotenv.load(fileName: ".env");
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-  );
-  runApp(const ThreadgramApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  String? initError;
+  try {
+    await dotenv.load(fileName: ".env");
+    await Supabase.initialize(
+      url: dotenv.env['SUPABASE_URL']!,
+      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    );
+  } catch (e) {
+    initError = e.toString();
+  }
+  runApp(ThreadgramApp(initError: initError));
 }
 
 class ThreadgramApp extends StatelessWidget {
-  const ThreadgramApp({super.key});
+  final String? initError;
+  const ThreadgramApp({super.key, this.initError});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Threadgram',
       theme: ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.white),
-      home: const AuthEntryScreen(),
+      home: initError != null
+          ? ErrorScreen(error: initError!)
+          : const AuthEntryScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// --- Layer 1: Auth Entry Screen ---
+// Error screen to show what went wrong
+class ErrorScreen extends StatelessWidget {
+  final String error;
+  const ErrorScreen({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 80, color: Colors.red),
+              const SizedBox(height: 20),
+              const Text('Initialization Failed', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              Text(error, textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- The rest of your AuthEntryScreen, AccountCompletionScreen, etc. ---
+// (Keep all the code below unchanged. I will repeat it for completeness.)
+
 class AuthEntryScreen extends StatefulWidget {
   const AuthEntryScreen({super.key});
 
@@ -117,7 +155,6 @@ class _AuthEntryScreenState extends State<AuthEntryScreen> {
   }
 }
 
-// --- Layer 2: Account Completion Form ---
 class AccountCompletionScreen extends StatefulWidget {
   final String email;
   const AccountCompletionScreen({super.key, required this.email});
@@ -144,7 +181,6 @@ class _AccountCompletionScreenState extends State<AccountCompletionScreen> {
         data: {'first_name': _firstNameController.text, 'last_name': _lastNameController.text},
       );
       if (res.user != null) {
-        // Navigate to Layer 3 (Region/Country screen)
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RegionSelectionScreen()));
       } else {
         throw Exception('Sign-up failed');
@@ -180,7 +216,6 @@ class _AccountCompletionScreenState extends State<AccountCompletionScreen> {
   }
 }
 
-// Placeholder for Layer 3: Region/Country Selection
 class RegionSelectionScreen extends StatelessWidget {
   const RegionSelectionScreen({super.key});
 
