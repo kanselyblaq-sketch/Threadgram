@@ -28,13 +28,12 @@ class ThreadgramApp extends StatelessWidget {
       theme: ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.white),
       home: initError != null
           ? ErrorScreen(error: initError!)
-          : const AuthEntryScreen(),
+          : const AuthWrapper(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// Error screen to show what went wrong
 class ErrorScreen extends StatelessWidget {
   final String error;
   const ErrorScreen({super.key, required this.error});
@@ -61,9 +60,69 @@ class ErrorScreen extends StatelessWidget {
   }
 }
 
-// --- The rest of your AuthEntryScreen, AccountCompletionScreen, etc. ---
-// (Keep all the code below unchanged. I will repeat it for completeness.)
+// Wrapper that listens to authentication state
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
 
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  late final Stream<AuthState> _authStateStream;
+  bool _isChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStateStream = Supabase.instance.client.auth.onAuthStateChange;
+    // Check initial session
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    setState(() {
+      _isChecking = false;
+    });
+    if (session != null) {
+      // Already logged in, go to region screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const RegionSelectionScreen()),
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isChecking) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return StreamBuilder<AuthState>(
+      stream: _authStateStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final event = snapshot.data!.event;
+          if (event == AuthChangeEvent.signedIn) {
+            // User just signed in, go to region screen
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const RegionSelectionScreen()),
+              );
+            });
+          }
+        }
+        return const AuthEntryScreen();
+      },
+    );
+  }
+}
+
+// --- Google‑only Auth Screen ---
 class AuthEntryScreen extends StatefulWidget {
   const AuthEntryScreen({super.key});
 
@@ -72,7 +131,6 @@ class AuthEntryScreen extends StatefulWidget {
 }
 
 class _AuthEntryScreenState extends State<AuthEntryScreen> {
-  final TextEditingController _emailController = TextEditingController();
   bool _isLoading = false;
 
   Future<void> _signInWithGoogle() async {
@@ -86,26 +144,9 @@ class _AuthEntryScreenState extends State<AuthEntryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Google Sign-In failed: $error')),
       );
-    } finally {
       setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _continueWithEmail() async {
-    if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your email')),
-      );
-      return;
-    }
-    setState(() => _isLoading = true);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AccountCompletionScreen(email: _emailController.text),
-      ),
-    );
-    setState(() => _isLoading = false);
+    // Note: _isLoading will be set to false only on error; on success the app will navigate away.
   }
 
   @override
@@ -121,17 +162,9 @@ class _AuthEntryScreenState extends State<AuthEntryScreen> {
               const SizedBox(height: 20),
               const Text('Log in or sign up'),
               const SizedBox(height: 40),
-              _buildSocialButton('Continue with Apple', () => _showComingSoon()),
-              _buildSocialButton('Continue with Facebook', () => _showComingSoon()),
               _buildSocialButton('Continue with Google', _signInWithGoogle),
-              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('OR')), Expanded(child: Divider())]),
               const SizedBox(height: 20),
-              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email address', border: OutlineInputBorder())),
-              const SizedBox(height: 20),
-              if (_isLoading) const CircularProgressIndicator() else ElevatedButton(onPressed: _continueWithEmail, child: const Text('Continue')),
-              TextButton(onPressed: () => _showComingSoon(), child: const Text('Forgot Password?')),
-              const SizedBox(height: 20),
-              const Text('English'),
+              if (_isLoading) const CircularProgressIndicator(),
             ],
           ),
         ),
@@ -149,73 +182,9 @@ class _AuthEntryScreenState extends State<AuthEntryScreen> {
       ),
     );
   }
-
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Coming Soon!')));
-  }
 }
 
-class AccountCompletionScreen extends StatefulWidget {
-  final String email;
-  const AccountCompletionScreen({super.key, required this.email});
-
-  @override
-  State<AccountCompletionScreen> createState() => _AccountCompletionScreenState();
-}
-
-class _AccountCompletionScreenState extends State<AccountCompletionScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _agreeToTerms = false;
-
-  Future<void> _signUp() async {
-    if (!_formKey.currentState!.validate() || !_agreeToTerms) return;
-    setState(() => _isLoading = true);
-    try {
-      final AuthResponse res = await Supabase.instance.client.auth.signUp(
-        email: widget.email,
-        password: _passwordController.text,
-        data: {'first_name': _firstNameController.text, 'last_name': _lastNameController.text},
-      );
-      if (res.user != null) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RegionSelectionScreen()));
-      } else {
-        throw Exception('Sign-up failed');
-      }
-    } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-up failed: $error')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create Account')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(controller: _firstNameController, decoration: const InputDecoration(labelText: 'First name'), validator: (value) => value!.isEmpty ? 'Required' : null),
-              TextFormField(controller: _lastNameController, decoration: const InputDecoration(labelText: 'Last name'), validator: (value) => value!.isEmpty ? 'Required' : null),
-              TextFormField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Password'), obscureText: true, validator: (value) => value!.length < 6 ? 'Password too short' : null),
-              Row(children: [Checkbox(value: _agreeToTerms, onChanged: (val) => setState(() => _agreeToTerms = val!)), const Expanded(child: Text('I agree to the Privacy Policy, Terms of Use and Terms of Service'))]),
-              const SizedBox(height: 20),
-              if (_isLoading) const CircularProgressIndicator() else ElevatedButton(onPressed: _signUp, child: const Text('Continue')),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+// Placeholder for Region/Country Selection (Layer 3)
 class RegionSelectionScreen extends StatelessWidget {
   const RegionSelectionScreen({super.key});
 
