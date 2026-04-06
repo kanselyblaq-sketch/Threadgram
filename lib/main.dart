@@ -37,10 +37,8 @@ class _AuthEntryScreenState extends State<AuthEntryScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'io.supabase.flutter://login-callback/',
-      );
+      // No custom redirectTo – Supabase will use the default deep link
+      await Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google);
     } catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Google Sign-In failed: $error')),
